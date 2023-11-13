@@ -2,7 +2,7 @@
 //
 // File: virtualLego.cpp
 //
-// Original Author: ¹ÚÃ¢Çö Chang-hyeon Park, 
+// Original Author: ë°•ì°½í˜„ Chang-hyeon Park, 
 // Modified by Bong-Soo Sohn and Dong-Jun Kim
 // 
 // Originally programmed for Virtual LEGO. 
@@ -36,7 +36,7 @@ bool start = false;
 
 
 
-const float spherePos[4][2] = { {-2.7f,0} , {+2.4f,0} , {3.3f,0} , {-2.7f,-0.9f} };
+
 // initialize the color of each ball (ball0 ~ ball3)
 const D3DXCOLOR sphereColor[4] = { d3d::RED, d3d::RED, d3d::YELLOW, d3d::WHITE };
 
@@ -47,13 +47,15 @@ D3DXMATRIX g_mWorld;
 D3DXMATRIX g_mView;
 D3DXMATRIX g_mProj;
 
-#define M_RADIUS 0.1   //blueball radius
-#define B_RADIUS 0.2   //ball radius
+#define M_RADIUS 0.15   //blueball radius
+#define B_RADIUS 0.1   //ball radius
 #define PI 3.14159265
 #define M_HEIGHT 0.01
 #define DECREASE_RATE 0.9982
-#define MAX_MOVE_BALL 100
+#define MAX_MOVE_BALL 10
 #define BALL_SPEED 0.005 //ball speed
+#define MAX_BALL_NUM 50
+
 
 // -----------------------------------------------------------------------------
 // CSphere class definition
@@ -63,13 +65,13 @@ class CSphere {
 private:
     float               center_x, center_y, center_z;
     float               m_radius;
-    bool                blue_ball;                     //°øÀÎÁö ÅºÈ¯ÀÎÁö ±¸ºĞÇÏ´Â º¯¼ö
+    bool                blue_ball;                     //ê³µì¸ì§€ íƒ„í™˜ì¸ì§€ êµ¬ë¶„í•˜ëŠ” ë³€ìˆ˜
     float               m_velocity_x; // 1 or -1
     float               m_velocity_z; // tan 0 to tan pi/3
     bool                move; //
 
 public:
-    CSphere(void)                           // °ø °´Ã¼
+    CSphere(void)                           // ê³µ ê°ì²´
     {
         D3DXMatrixIdentity(&m_mLocal);
         ZeroMemory(&m_mtrl, sizeof(m_mtrl));
@@ -130,6 +132,7 @@ public:
         float diff_rad = abs(ball.getRadius() - blue.getRadius());
         float sum_rad = ball.getRadius() + blue.getRadius();
 
+
         if (diff_rad <= distance && distance <= sum_rad)
         {
             exit(1);
@@ -150,33 +153,22 @@ public:
 
  public:   //setter
 
-    void setove(bool move) {
-        this->move = move;
-    }
-    void set_velocity() { // ³­¼ö·Î Àû¿ë
+    void setove(bool move) {this->move = move;}
+    void set_velocity() { // ë‚œìˆ˜ë¡œ ì ìš©
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_int_distribution<int> dis(-60, 60);
         this->m_velocity_z = tan(dis(gen) % 60 / 180.0 * PI);
 
-        std::uniform_int_distribution<int> dis1(-1, 1);
-        this->m_velocity_x = dis1(gen);
+        std::uniform_int_distribution<int> dis1(0, 1);
+        if (dis1(gen) == 0) this->m_velocity_x = -1;
+        else { this->m_velocity_x = 1; }
        
     }
-    void set_velocity_z(float m_velocity) {
-        this->m_velocity_z = m_velocity;
-    }
-    void set_velocity_x(float dir) {
-        this->m_velocity_x = dir;
-    }
-    void setBlue(bool sign) { this->blue_ball = sign; }               //°ø °´Ã¼¿¡ ÅºÈ¯ÀÎÁö °øÀÎ Áö ±¸ºĞÇÏ´Â setter
-        
-    void setPower(double vx, double vz)
-    {
-        this->m_velocity_x = vx;
-        this->m_velocity_z = vz;
-    }
-
+    void set_velocity_z(float m_velocity) {this->m_velocity_z = m_velocity;}
+    void set_velocity_x(float dir) {this->m_velocity_x = dir;}
+    void setBlue(bool sign) { this->blue_ball = sign; }               //ê³µ ê°ì²´ì— íƒ„í™˜ì¸ì§€ ê³µì¸ ì§€ êµ¬ë¶„í•˜ëŠ” setter   
+    void setPower(double vx, double vz){this->m_velocity_x = vx; this->m_velocity_z = vz;}
     void setCenter(float x, float y, float z)
     {
         D3DXMATRIX m;
@@ -185,21 +177,15 @@ public:
         setLocalTransform(m);
     }
     void setLocalTransform(const D3DXMATRIX& mLocal) { m_mLocal = mLocal; }
-    D3DXVECTOR3 getCenter(void) const
-    {
-        D3DXVECTOR3 org(center_x, center_y, center_z);
-        return org;
-    }
-
+    void setMove(bool move) { this->move = move; }
     
   public: //getter
 
-    bool getMove() {
-        return this->move;
-    }
+    bool getMove() {return this->move;}
     double getVelocity_X() { return this->m_velocity_x; }
     double getVelocity_Z() { return this->m_velocity_z; }
     bool getblueball() { return this->blue_ball; }
+    D3DXVECTOR3 getCenter(void) const{D3DXVECTOR3 org(center_x, center_y, center_z);return org;}
     float getRadius()
         const {
         if (this->blue_ball == true)
@@ -208,61 +194,18 @@ public:
     }
     const D3DXMATRIX& getLocalTransform(void) const { return m_mLocal; }
 
-
     
     void ballUpdate(float timeDiff)
     {
-     
+        
         const float TIME_SCALE = 1.0;
         
         D3DXVECTOR3 cord = this->getCenter();
         double vx = abs(this->getVelocity_X());
         double vz = abs(this->getVelocity_Z());
         this->move_Ball();
-     /*   if (vx > 0.01 || vz > 0.01)
-        {
-            float tX = cord.x + TIME_SCALE * timeDiff * m_velocity_x;
-            float tZ = cord.z + TIME_SCALE * timeDiff * m_velocity_z;
 
-            //correction of position of ball
-            // Please uncomment this part because this correction of ball position is necessary when a ball collides with a wall
-            //tX, tZ ´Â Å×ÀÌºíÀÇ ¿øÁ¡¿¡¼­ÀÇ °øÀÇ °Å¸®
-            if (tX >= (4.5 - M_RADIUS))                                    //º®°ú °øÀÌ ºÎµúÈ÷¸é ¹İ´ë ¹æÇâÀ¸·Î Æ¨±â´Â Çö»ó ±¸Çö
-            {
-                tX = 4.5 - M_RADIUS;
-                setPower(-getVelocity_X() * 0.9, getVelocity_Z() * 0.9);
-            }
-            else if (tX <= (-4.5 + M_RADIUS))
-            {
-                tX = (-4.5 + M_RADIUS);
-                setPower(-getVelocity_X() * 0.9, getVelocity_Z() * 0.9);
-            }
-            else if (tZ >= 3 - M_RADIUS)
-            {
-                tZ = 3 - M_RADIUS;
-                setPower(getVelocity_X() * 0.9, -getVelocity_Z() * 0.9);
-            }
-            else if (tZ <= -3 + M_RADIUS)
-            {
-                tZ = -3 + M_RADIUS;
-                setPower(getVelocity_X() * 0.9, -getVelocity_Z() * 0.9);
-            }
-
-            this->setCenter(tX, cord.y, tZ);
-        }
-        else
-        {
-            this->setPower(0, 0);
-        }
-        //this->setPower(this->getVelocity_X() * DECREASE_RATE, this->getVelocity_Z() * DECREASE_RATE);
-        double rate = 1 - (1 - DECREASE_RATE) * timeDiff * 400;
-        if (rate < 0)
-            rate = 0;
-        this->setPower(getVelocity_X() * rate, getVelocity_Z() * rate);
-    */
     }
-
-
 
 
 private:
@@ -346,10 +289,7 @@ public:
         float rad = ball.getRadius();
         float distance_x = abs(cord.x - this->m_x);
         float distance_z = abs(cord.z - this->m_z);
-        //if (this->type == 0 && ball.getblueball() == true && ) {
-
-        //}
-
+        
         if (this->type == 0 && distance_x < rad) { //left wall collision
             ball.set_velocity_x(-1 * ball.getVelocity_X());
             ball.setCenter(this->m_x-0.2,float(M_RADIUS), cord.z);
@@ -358,7 +298,7 @@ public:
         if (this->type == 1 && distance_x <= rad) { //right wall collision
             ball.set_velocity_x(-1 * ball.getVelocity_X());
             ball.setCenter(this->m_x + 0.2, float(M_RADIUS), cord.z);
-
+             
         }
         if (this->type == 2 && distance_z <= rad) { //upper wall collision
             ball.set_velocity_z(-1 * ball.getVelocity_Z());
@@ -369,8 +309,43 @@ public:
             ball.set_velocity_z(-1 * ball.getVelocity_Z());
             ball.setCenter(cord.x, float(M_RADIUS), this->m_z - 0.2);
         }
+
        
     }
+    void hitBy(CSphere& target, CSphere& ball)
+    {
+        D3DXVECTOR3 cordb = ball.getCenter();
+        D3DXVECTOR3 cordt = target.getCenter();
+        float radb = ball.getRadius();
+        float distance_bx = abs(cordb.x - this->m_x);
+        float distance_bz = abs(cordb.z - this->m_z);
+        float radt = target.getRadius();
+        float distance_tx = abs(cordt.x - this->m_x);
+        float distance_tz = abs(cordt.z - this->m_z);
+
+        // Calculate the direction from the ball to the target
+        D3DXVECTOR3 direction = cordt - cordb;
+        D3DXVec3Normalize(&direction, &direction);
+
+        if (this->type == 0 && distance_bx < radb) { //left wall collision
+            ball.set_velocity_x(direction.x);
+            ball.set_velocity_z(direction.z);
+            ball.setCenter(this->m_x - 0.2, float(M_RADIUS), cordb.z);
+        }
+        if (this->type == 1 && distance_bx <= radb) { //right wall collision
+            ball.set_velocity_x(direction.x);
+            ball.setCenter(this->m_x + 0.2, float(M_RADIUS), cordb.z);
+        }
+        if (this->type == 2 && distance_bz <= radb) { //upper wall collision
+            ball.set_velocity_z(direction.z);
+            ball.setCenter(cordb.x, float(M_RADIUS), this->m_z + 0.2);
+        }
+        if (this->type == 3 && distance_bz <= radb) { //down wall collision
+            ball.set_velocity_z(direction.z);
+            ball.setCenter(cordb.x, float(M_RADIUS), this->m_z - 0.2);
+        }
+    }
+
     void settype(int type) { // 0 : left, 1: right, 2:up, 3: down
         this->type = type;
     }
@@ -380,8 +355,8 @@ public:
         this->m_x = x;
         this->m_z = z;
 
-        D3DXMatrixTranslation(&m, x, y, z);         //x,y,zÀÇ ÁÂÇ¥¸¦ Çà·Ä·Î º¯È¯
-        setLocalTransform(m);                  //Çà·Ä´ë·Î À§Ä¡ º¯È¯
+        D3DXMatrixTranslation(&m, x, y, z);         //x,y,zì˜ ì¢Œí‘œë¥¼ í–‰ë ¬ë¡œ ë³€í™˜
+        setLocalTransform(m);                  //í–‰ë ¬ëŒ€ë¡œ ìœ„ì¹˜ ë³€í™˜
     }
 
     float getHeight(void) const { return M_HEIGHT; }
@@ -487,14 +462,16 @@ private:
 // Global variables
 // -----------------------------------------------------------------------------
 CWall   g_legoPlane;
-
-
 CWall   g_legowall[4];
-CSphere   g_sphere[4];
+CSphere   g_sphere[MAX_BALL_NUM];
 //CSphere g_test;
 CSphere   g_target_blueball;
 CLight   g_light;
 
+float spherePos[100][2];
+
+static int G_time=0;
+static int G_num =0;
 double g_camera_pos[3] = { 0.0, 5.0, -8.0 };
 
 // -----------------------------------------------------------------------------
@@ -516,7 +493,7 @@ bool Setup()
     D3DXMatrixIdentity(&g_mProj);
 
     // create plane and set the position
-    if (false == g_legoPlane.create(Device, -1, -1, 9, 0.03f, 6, d3d::GREEN)) return false;         //ÆÇ »ö»ó
+    if (false == g_legoPlane.create(Device, -1, -1, 9, 0.03f, 6, d3d::GREEN)) return false;         //íŒ ìƒ‰ìƒ
     g_legoPlane.setPosition(0.0f, -0.0006f / 5, 0.0f);
 
     // create walls and set the position. note that there are four walls
@@ -534,37 +511,24 @@ bool Setup()
 
     // create four balls and set the position
 
-    std::uniform_int_distribution<int> int_distribution(1, 4);               //À§Ä¡ »ı¼º À§ÇÑ ³­¼ö ¹üÀ§
-    std::uniform_real_distribution<float> distribution_r(5.0, 6.0);
-    std::uniform_real_distribution<float> distribution_l(-6.0, -5.0);
-    std::uniform_real_distribution<float> distribution_u(4.0, 5.0);
-    std::uniform_real_distribution<float> distribution_d(-5.0, -4.0);
-
-    /*for (i = 0; i < 4; i++) {                                                   //±âÁ¸ÀÇ ¹Ì¸® ¸¸µé¾îÁø °´Ã¼ 4°³¿¡ ´ëÇØ À§Ä¡ ·£´ıÀ¸·Î »ı¼ºÇÏµµ·Ï ±¸ÇöÇßÁö¸¸
-        if (false == g_sphere[i].create(Device, sphereColor[i])) return false;         //½Ã°£ÃÊ ¸¶´Ù °´Ã¼¸¦ µ¿ÀûÀ¸·Î »ı¼ºÇÏ°í Á¦°ÅÇÏµµ·Ï ÇØ¾ß ÇÑ´Ù.
+    std::uniform_real_distribution<float> disw(-3.0f, 3.0f);
+    std::uniform_real_distribution<float> dish(-4.0f, 4.0f);
+    
+    for (i = 0; i < MAX_BALL_NUM; i++) {                                                   //ê¸°ì¡´ì˜ ë¯¸ë¦¬ ë§Œë“¤ì–´ì§„ ê°ì²´ 4ê°œì— ëŒ€í•´ ìœ„ì¹˜ ëœë¤ìœ¼ë¡œ ìƒì„±í•˜ë„ë¡ êµ¬í˜„í–ˆì§€ë§Œ
+        if (false == g_sphere[i].create(Device, sphereColor[i])) return false;         //ì‹œê°„ì´ˆ ë§ˆë‹¤ ê°ì²´ë¥¼ ë™ì ìœ¼ë¡œ ìƒì„±í•˜ê³  ì œê±°í•˜ë„ë¡ í•´ì•¼ í•œë‹¤.
 
         std::random_device rd;
 
         std::mt19937 gen(rd());
-        int random_int = int_distribution(gen);
-        float right_x = distribution_r(gen);
-        float left_x = distribution_l(gen);
-        float up_y = distribution_u(gen);
-        float down_y = distribution_d(gen);
+        float width = disw(gen);
+        float height = dish(gen);
 
         g_sphere[i].setBlue(false);
+        spherePos[i][0] = height;
+        spherePos[i][1] = width;
 
-        if (random_int == 1)
-            g_sphere[i].setCenter(right_x, (float)M_RADIUS, up_y);
-        else if (random_int == 2)
-            g_sphere[i].setCenter(left_x, (float)M_RADIUS, up_y);
-        else if (random_int == 3)
-            g_sphere[i].setCenter(right_x, (float)M_RADIUS, down_y);
-        else
-            g_sphere[i].setCenter(left_x, (float)M_RADIUS, down_y);
-        g_sphere[i].setPower(0, 0);
-    }*/
-    for (i = 0; i < 4; i++) {
+    }
+    for (i = 0; i < MAX_BALL_NUM; i++) {
         if (false == g_sphere[i].create(Device, sphereColor[i])) return false;
         g_sphere[i].setCenter(spherePos[i][0], (float)M_RADIUS, spherePos[i][1]);
         g_sphere[i].setPower(0, 0);
@@ -577,7 +541,7 @@ bool Setup()
     g_test.set_velocity_z(0);
     */
     // create blue ball for set m_velocity
-    g_target_blueball.setBlue(true); //true·Î ¼öÁ¤ÇØ¾ßÇÔ
+    g_target_blueball.setBlue(true); //trueë¡œ ìˆ˜ì •í•´ì•¼í•¨
     if (false == g_target_blueball.create(Device, d3d::BLUE)) return false;
     g_target_blueball.setCenter(.0f, (float)M_RADIUS, .0f);
 
@@ -642,28 +606,33 @@ bool Display(float timeDelta)
         Device->BeginScene();
 
         // update the position of each ball. during update, check whether each ball hit by walls.
-        for (i = 0; i < 4; i++) {
+        for (i = 0; i < MAX_BALL_NUM; i++) {
             g_sphere[i].ballUpdate(timeDelta);
                       
-            for (j = 0; j < 4; j++) { g_legowall[i].hitBy(g_sphere[j]); }
+            for (j = 0; j < 4; j++) { g_legowall[j].hitBy( g_target_blueball, g_sphere[i]); }
           //  g_legowall[i].hitBy(g_test);
         }
 
         // check whether any two balls hit together and update the m_velocity of balls
-        for (i = 0; i < 4; i++) {
-            for (j = 0; j < 4; j++) {
-
-
-                if (i >= j) { continue; }
-                g_sphere[i].hitBy(g_target_blueball,g_sphere[i]);
-            }
+        for (i = 0; i < MAX_BALL_NUM; i++) {
+            g_sphere[i].hitBy(g_target_blueball,g_sphere[i]);
+            
         }
 
         // draw plane, walls, and spheres
         g_legoPlane.draw(Device, g_mWorld);
         for (i = 0; i < 4; i++) {
             g_legowall[i].draw(Device, g_mWorld);
+        }
+        for (i = 0; i < MAX_BALL_NUM; i++) {
+            
             g_sphere[i].draw(Device, g_mWorld);
+        }
+        G_time++;
+        if (G_time > 2000) { //1000 = 2 sec
+            G_time = 0;
+            g_sphere[G_num].setMove(true);
+            if (G_num < MAX_BALL_NUM) { G_num++; }
         }
         g_target_blueball.draw(Device, g_mWorld);
         //g_test.draw(Device, g_mWorld);
@@ -695,39 +664,29 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         ::PostQuitMessage(0);
         break;
     }
-    case WM_KEYDOWN:                  //¹öÆ° ÀÔ·Â º¯¼ö
+    case WM_KEYDOWN:                  //ë²„íŠ¼ ì…ë ¥ ë³€ìˆ˜
     {
         switch (wParam) {
-        case VK_ESCAPE:               //ESC ´©¸£¸é ³ª°¨
+        case VK_ESCAPE:               //ESC ëˆ„ë¥´ë©´ ë‚˜ê°
             ::DestroyWindow(hwnd);
             break;
-        case VK_RETURN:               //¿£ÅÍ Å° ´©¸£¸é
+        case VK_RETURN:               //ì—”í„° í‚¤ ëˆ„ë¥´ë©´
             if (NULL != Device) {
                 wire = !wire;
                 Device->SetRenderState(D3DRS_FILLMODE,
                     (wire ? D3DFILL_WIREFRAME : D3DFILL_SOLID));
             }
             break;
-        case VK_SPACE:               //½ºÆäÀÌ½º ¹Ù ´©¸£¸é
-            /*                                                //½ºÆäÀÌ½º ¹Ù ´©¸£¸é ÇÏ¾á °øÀÌ ¿òÁ÷ÀÌ´Â ÄÚµå ÁÖ¼®Ã³¸®
-            D3DXVECTOR3 targetpos = g_target_blueball.getCenter();
-            D3DXVECTOR3   whitepos = g_sphere[3].getCenter();
-            double theta = acos(sqrt(pow(targetpos.x - whitepos.x, 2)) / sqrt(pow(targetpos.x - whitepos.x, 2) +
-               pow(targetpos.z - whitepos.z, 2)));      // ±âº» 1 »çºĞ¸é
-            if (targetpos.z - whitepos.z <= 0 && targetpos.x - whitepos.x >= 0) { theta = -theta; }   //4 »çºĞ¸é
-            if (targetpos.z - whitepos.z >= 0 && targetpos.x - whitepos.x <= 0) { theta = PI - theta; } //2 »çºĞ¸é
-            if (targetpos.z - whitepos.z <= 0 && targetpos.x - whitepos.x <= 0){ theta = PI + theta; } // 3 »çºĞ¸é
-            double distance = sqrt(pow(targetpos.x - whitepos.x, 2) + pow(targetpos.z - whitepos.z, 2));
-            g_sphere[3].setPower(distance * cos(theta), distance * sin(theta));
-            */
+        case VK_SPACE:   
+
             g_target_blueball.setove(true);
-            start = !start;                  //½ºÆäÀÌ½º ¹Ù ÀÔ·Â ½Ã Ä¿¼­ »ç¶óÁü ( ÆÄ¶õ °øÀÌ ¿òÁ÷ÀÏ ¼ö  ÀÖµµ·Ï ÇÏ´Â Á¶°Ç )
+            start = !start;                  //ìŠ¤í˜ì´ìŠ¤ ë°” ì…ë ¥ ì‹œ ì»¤ì„œ ì‚¬ë¼ì§ ( íŒŒë€ ê³µì´ ì›€ì§ì¼ ìˆ˜  ìˆë„ë¡ í•˜ëŠ” ì¡°ê±´ )
             ShowCursor(!start);
             break;
         case VK_F1:
-            //D3DXVECTOR3 coord3d[3];
+          
             
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < MAX_BALL_NUM; i++) {
                 if(g_sphere[i].getMove()== false) g_sphere[i].setove(true);
                 else { g_sphere[i].setove(false); }
             }
@@ -753,7 +712,7 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         }
         /*
-           if (LOWORD(wParam) & MK_LBUTTON) {            //¿ŞÂÊ Å¬¸¯ ÀÔ·Â ½Ã Å×ÀÌºí È¸ÀüÇÏ´Â ÄÚµå ÁÖ¼® Ã³¸®
+           if (LOWORD(wParam) & MK_LBUTTON) {            //ì™¼ìª½ í´ë¦­ ì…ë ¥ ì‹œ í…Œì´ë¸” íšŒì „í•˜ëŠ” ì½”ë“œ ì£¼ì„ ì²˜ë¦¬
 
                if (isReset) {
                    isReset = false;
@@ -797,14 +756,14 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         */
 
 
-        if (start == true&& g_target_blueball.getMove() == true)               //ÆÄ¶õ °øÀÌ ¿òÁ÷ÀÌµµ·Ï ÇÏ´Â ÄÚµå
+        if (start == true&& g_target_blueball.getMove() == true)               //íŒŒë€ ê³µì´ ì›€ì§ì´ë„ë¡ í•˜ëŠ” ì½”ë“œ
         {
             dx = (old_x - new_x);
             dy = (old_y - new_y);
             dy = (old_y - new_y);
-            D3DXVECTOR3 coord3d = g_target_blueball.getCenter();      //ÆÄ¶õ °ø ÇöÀç ÁÂÇ¥ ¾ò±â
+            D3DXVECTOR3 coord3d = g_target_blueball.getCenter();      //íŒŒë€ ê³µ í˜„ì¬ ì¢Œí‘œ ì–»ê¸°
 
-            if (coord3d.x >= (4.5 - M_RADIUS))                     //ÆÄ¶õ °ø º®¿¡ ´êÀ¸¸é ¹İ´ëÆí º®À¸·Î ÀÌµ¿ÇÏ´Â if ÄÚµå
+            if (coord3d.x >= (4.5 - M_RADIUS))                     //íŒŒë€ ê³µ ë²½ì— ë‹¿ìœ¼ë©´ ë°˜ëŒ€í¸ ë²½ìœ¼ë¡œ ì´ë™í•˜ëŠ” if ì½”ë“œ
             {
                 coord3d.x = -4.5 + 2 * M_RADIUS;
                 g_target_blueball.setCenter(coord3d.x, (float)M_RADIUS, coord3d.z);
@@ -826,7 +785,7 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
 
             else
-                g_target_blueball.setCenter(coord3d.x + dx * 0.01f, (float)M_RADIUS, coord3d.z - dy * 0.01f);      //ÇöÀç ÁÂÇ¥¿¡ ¸¶¿ì½º ÀÌµ¿ º¯È­·® ´õÇÏ¿© À§Ä¡ º¯È¯
+                g_target_blueball.setCenter(coord3d.x + dx * 0.01f, (float)M_RADIUS, coord3d.z - dy * 0.01f);      //í˜„ì¬ ì¢Œí‘œì— ë§ˆìš°ìŠ¤ ì´ë™ ë³€í™”ëŸ‰ ë”í•˜ì—¬ ìœ„ì¹˜ ë³€í™˜
 
         }
         old_x = new_x;
