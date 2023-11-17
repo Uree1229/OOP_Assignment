@@ -23,19 +23,16 @@
 #include <random>
 
 IDirect3DDevice9* Device = NULL;
-
+IDirect3DDevice9* EndingPage = NULL;
 // window size
 const int Width = 1024;
 const int Height = 768;
 
 // start button
 bool start = false;
-
+static bool G_end = false;
 // There are four balls
 // initialize the position (coordinate) of each ball (ball0 ~ ball3)
-
-
-
 
 // initialize the color of each ball (ball0 ~ ball3)
 const D3DXCOLOR sphereColor[4] = { d3d::RED, d3d::RED, d3d::YELLOW, d3d::WHITE };
@@ -57,6 +54,7 @@ D3DXMATRIX g_mProj;
 #define MAX_BALL_NUM 50
 #define TIME_BALL_MOVE 2000
 
+
 // -----------------------------------------------------------------------------
 // CSphere class definition
 // -----------------------------------------------------------------------------
@@ -71,6 +69,7 @@ private:
     bool                move; //
     bool                isVisible;
    // IDirect3DTexture9* m_pTexture;
+
 public:
     CSphere(void)                           // 공 객체
     {   
@@ -141,7 +140,7 @@ public:
         if (ball.isVisible == true) {
             if (diff_rad <= distance && distance <= sum_rad)
             {
-                exit(1);
+                G_end = true;
             }
         }
 
@@ -226,8 +225,8 @@ public:
 
 private:
     D3DXMATRIX              m_mLocal;
-    D3DMATERIAL9            m_mtrl;
-    ID3DXMesh* m_pSphereMesh;
+    D3DMATERIAL9           m_mtrl;
+    ID3DXMesh*              m_pSphereMesh;
 
 };
 
@@ -276,6 +275,7 @@ public:
             return false;
         return true;
     }
+
     void destroy(void)
     {
         if (m_pBoundMesh != NULL) {
@@ -368,6 +368,8 @@ public:
     void setPosition(float x, float y, float z)
     {
         D3DXMATRIX m;
+        
+        
         this->m_x = x;
         this->m_z = z;
 
@@ -473,8 +475,99 @@ private:
     d3d::BoundingSphere m_bound;
 };
 
-
 // -----------------------------------------------------------------------------
+// CItem class definition
+// -----------------------------------------------------------------------------
+/*class CItem {
+private:
+    float               center_x, center_y, center_z;
+    float               m_diagnoal;
+    bool                isVisible;
+    // IDirect3DTexture9* m_pTexture;
+
+public:
+    CItem(void)                           // 공 객체
+    {
+        D3DXMatrixIdentity(&m_mLocal);
+        ZeroMemory(&m_mtrl, sizeof(m_mtrl));
+        m_diagnoal = 0;
+        m_pSphereMesh = NULL;
+        isVisible = false;
+
+    }
+    ~CItem(void) {}
+
+public:
+    bool create(IDirect3DDevice9* pDevice, D3DXCOLOR color = d3d::WHITE)
+    {
+        if (NULL == pDevice)
+            return false;
+
+        m_mtrl.Ambient = color;
+        m_mtrl.Diffuse = color;
+        m_mtrl.Specular = color;
+        m_mtrl.Emissive = d3d::BLACK;
+        m_mtrl.Power = 5.0f;
+
+        if (FAILED(D3DXCreateSphere(pDevice, getRadius(), 50, 50, &m_pSphereMesh, NULL)))
+            return false;
+        return true;
+    }
+
+    void destroy(void)
+    {
+        if (m_pSphereMesh != NULL) {
+            m_pSphereMesh->Release();
+            m_pSphereMesh = NULL;
+        }
+    }
+
+    void draw(IDirect3DDevice9* pDevice, const D3DXMATRIX& mWorld, bool isVisible)
+    {
+        if (NULL == pDevice || !isVisible || !getVisible())
+            return;
+
+        pDevice->SetTransform(D3DTS_WORLD, &mWorld);
+        pDevice->MultiplyTransform(D3DTS_WORLD, &m_mLocal);
+        pDevice->SetMaterial(&m_mtrl);
+        m_pSphereMesh->DrawSubset(0);
+    }
+
+    void hitBy(CSphere& blue)
+    {
+
+        }
+
+    
+public:   //setter
+
+    void setCenter(float x, float y, float z)
+    {
+        D3DXMATRIX m;
+        center_x = x;   center_y = y;   center_z = z;
+        D3DXMatrixTranslation(&m, x, y, z);
+        setLocalTransform(m);
+    }
+    void setLocalTransform(const D3DXMATRIX& mLocal) { m_mLocal = mLocal; }
+    void setVisible(bool visible) { isVisible = visible; }
+    
+public: //getter
+
+    D3DXVECTOR3 getCenter(void) const { D3DXVECTOR3 org(center_x, center_y, center_z); return org; }
+    const float getDiagonal(void) const { return this->m_diagnoal; }
+    const D3DXMATRIX& getLocalTransform(void) const { return m_mLocal; }
+    const bool getVisible(void) const { return isVisible; }
+
+
+
+private:
+    D3DXMATRIX              m_mLocal;
+    D3DMATERIAL9            m_mtrl;
+    ID3DXMesh* m_pSphereMesh;
+
+};*/
+// -----------------------------------------------------------------------------
+// Global variables
 // Global variables
 // -----------------------------------------------------------------------------
 CWall   g_legoPlane;
@@ -486,6 +579,7 @@ CLight   g_light;
 
 float spherePos[100][2];
 
+
 static int G_time=0;
 static int G_num =0;
 double g_camera_pos[3] = { 0.0, 5.0, -8.0 };
@@ -493,6 +587,7 @@ double g_camera_pos[3] = { 0.0, 5.0, -8.0 };
 // -----------------------------------------------------------------------------
 // Functions
 // -----------------------------------------------------------------------------
+
 
 
 void destroyAllLegoBlock(void)
@@ -551,11 +646,7 @@ bool Setup()
         g_sphere[i].set_velocity();
    
     }
-    /*if (false == g_test.create(Device, d3d::BLUE)) return false;
-    g_test.setCenter(.0f, (float)M_RADIUS, 2.0f);
-    g_test.set_velocity_x(3);
-    g_test.set_velocity_z(0);
-    */
+
     // create blue ball for set m_velocity
     g_target_blueball.setBlue(true); //true로 수정해야함
     if (false == g_target_blueball.create(Device, d3d::BLUE)) return false;
@@ -630,33 +721,47 @@ bool Display(float timeDelta)
 
         // check whether any two balls hit together and update the m_velocity of balls
         for (i = 0; i < MAX_BALL_NUM; i++) {
-            g_sphere[i].hitBy(g_target_blueball,g_sphere[i]);
-            
+            g_sphere[i].hitBy(g_target_blueball,g_sphere[i]);       
         }
-
-        // draw plane, walls, and spheres
         g_legoPlane.draw(Device, g_mWorld);
         for (i = 0; i < 4; i++) {
             g_legowall[i].draw(Device, g_mWorld);
         }
-
         for (i = 0; i < MAX_BALL_NUM; i++) {
             g_sphere[i].draw(Device, g_mWorld, true);
         }
-        G_time++;
-        if (G_time > TIME_BALL_MOVE) { //1000 = 2 sec
-            G_time = 0;
-            g_sphere[G_num].setVisible(true);
-           // g_sphere[G_num].draw(Device, g_mWorld, true);
-            g_sphere[G_num].setMove(true);
-            if (G_num < MAX_BALL_NUM) { G_num++; }
-        }
+
+        if (start == true) {
+            // draw plane, walls, and spheres
+            if (G_end == true) {
+                for (i = 0; i < MAX_BALL_NUM; i++) {
+                    g_sphere[i].setMove(false);
+                }
+                g_target_blueball.setMove(false);
+            }
+            else {
+                G_time++;
+
+                if (G_time > TIME_BALL_MOVE) { //1000 = 2 sec
+                    G_time = 0;
+                    g_sphere[G_num].setVisible(true);
+                    g_sphere[G_num].setMove(true);
+                    if (G_num < MAX_BALL_NUM) { G_num++; }
+                }
+            }
+            
+        }    
+
+        
+
         g_target_blueball.draw(Device, g_mWorld, true);
         g_light.draw(Device);
 
         Device->EndScene();
         Device->Present(0, 0, 0, 0);
         Device->SetTexture(0, NULL);
+
+
     }
     return true;
 }
@@ -694,24 +799,22 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
             break;
         case VK_SPACE:   
-
+            //g_target_blueball.setBlue()
             g_target_blueball.setove(true);
             start = !start;                  //스페이스 바 입력 시 커서 사라짐 ( 파란 공이 움직일 수  있도록 하는 조건 )
             ShowCursor(!start);
             break;
         case VK_F1:
           
-            
             for (int i = 0; i < MAX_BALL_NUM; i++) {
                 if(g_sphere[i].getMove()== false) g_sphere[i].setove(true);
                 else { g_sphere[i].setove(false); }
             }
             break;
             
-       /* case VK_F2:
+       case VK_F2:
             //D3DXVECTOR3 coor;
-            g_target_blueball.setTexture(Device, "C.jpg ");
-            break;*/
+           break;
         }
  
         break;
