@@ -31,13 +31,11 @@ const int Height = 768;
 // start button
 bool start = false;
 static bool G_end = false;
-// There are four balls
-// initialize the position (coordinate) of each ball (ball0 ~ ball3)
-
-// score
+static int G_event = 0;
+static float STATIC_BALL_SPEED = 0.005; //ball speed
 static int score = 0;
+static int HP_count = 3;
 
-// initialize the color of each ball (ball0 ~ ball3)
 const D3DXCOLOR sphereColor[4] = { d3d::RED, d3d::RED, d3d::YELLOW, d3d::WHITE };
 
 // -----------------------------------------------------------------------------
@@ -53,109 +51,15 @@ D3DXMATRIX g_mProj;
 #define PI 3.14159265
 #define M_HEIGHT 0.01
 #define DECREASE_RATE 0.9982
+
 #define MAX_MOVE_BALL 10
-#define BALL_SPEED 0.005 //ball speed
-#define MAX_BALL_NUM 50
-#define TIME_BALL_MOVE 2000
+#define MAX_BALL_NUM 100
+#define MAX_ITEM_NUM 50
 
-// -----------------------------------------------------------------------------
-// CBox class definition
-// -----------------------------------------------------------------------------
-class CBox {
-private:
-    float               m_x, m_z, m_width, m_depth, m_height;
-    float               m_diagnoal;
-    bool                isVisible;
-    // IDirect3DTexture9* m_pTexture;
+#define TIME_BALL_MOVE 1000
+#define TIME_ITEM 2000
 
-public:
-    CBox(void)                           // 공 객체
-    {
-        D3DXMatrixIdentity(&m_mLocal);
-        ZeroMemory(&m_mtrl, sizeof(m_mtrl));
-        m_pBoxMesh = NULL;
-        m_diagnoal = 0;
-        isVisible = false;
-        m_width = 0;
-        m_height = 0;
-        m_depth = 0;
-    }
-    ~CBox(void) {}
-
-public:
-    bool create(IDirect3DDevice9* pDevice, float iwidth, float iheight, float idepth, D3DXCOLOR color = d3d::WHITE)
-    {
-        if (NULL == pDevice)
-            return false;
-
-        m_mtrl.Ambient = color;
-        m_mtrl.Diffuse = color;
-        m_mtrl.Specular = color;
-        m_mtrl.Emissive = d3d::BLACK;
-        m_mtrl.Power = 5.0f;
-
-
-        if (FAILED(D3DXCreateBox(pDevice, iwidth, iheight, idepth, &m_pBoxMesh, NULL)))
-            return false;
-        return true;
-    }
-
-
-    void destroy(void)
-    {
-        if (m_pBoxMesh != NULL) {
-            m_pBoxMesh->Release();
-            m_pBoxMesh = NULL;
-        }
-    }
-
-    void draw(IDirect3DDevice9* pDevice, const D3DXMATRIX& mWorld)
-    {
-        if (NULL == pDevice || !getVisible())
-            return;
-
-        pDevice->SetTransform(D3DTS_WORLD, &mWorld);
-        pDevice->MultiplyTransform(D3DTS_WORLD, &m_mLocal);
-        pDevice->SetMaterial(&m_mtrl);
-        m_pBoxMesh->DrawSubset(0);
-    }
-
-    void hitBy(CBox& blue)
-    {
-
-    }
-
-
-public:   //setter
-
-    void setPosition(float x, float y, float z)
-    {
-        D3DXMATRIX m;
-
-
-        this->m_x = x;
-        this->m_z = z;
-
-        D3DXMatrixTranslation(&m, x, y, z);         //x,y,z의 좌표를 행렬로 변환
-        setLocalTransform(m);                  //행렬대로 위치 변환
-    }
-    void setLocalTransform(const D3DXMATRIX& mLocal) { m_mLocal = mLocal; }
-    void setVisible(bool visible) { isVisible = visible; }
-    void setDiagonal(float diagonal) { this->m_diagnoal = diagonal; }
-public: //getter
-
-    const float getDiagonal(void) const { return this->m_diagnoal; }
-    const D3DXMATRIX& getLocalTransform(void) const { return m_mLocal; }
-    const bool getVisible(void) const { return isVisible; }
-
-
-
-private:
-    D3DXMATRIX              m_mLocal;
-    D3DMATERIAL9           m_mtrl;
-    ID3DXMesh* m_pBoxMesh;
-
-};
+#define FIXED_BALL_SPEED 0.005
 
 // -----------------------------------------------------------------------------
 // CSphere class definition
@@ -170,22 +74,24 @@ private:
     float               m_velocity_z; // tan 0 to tan pi/3
     bool                move; //
     bool                isVisible;
-    // IDirect3DTexture9* m_pTexture;
+    float               BALL_SPEED;
+   // IDirect3DTexture9* m_pTexture;
 
 public:
     CSphere(void)                           // 공 객체
-    {
+    {   
         D3DXMatrixIdentity(&m_mLocal);
         ZeroMemory(&m_mtrl, sizeof(m_mtrl));
         m_radius = 0;
-
+    
         m_pSphereMesh = NULL;
         blue_ball = false;
         m_velocity_x = 1;
         m_velocity_z = 0;
         move = false;
         isVisible = false;
-
+        BALL_SPEED = FIXED_BALL_SPEED;
+       
     }
     ~CSphere(void) {}
 
@@ -194,7 +100,7 @@ public:
     {
         if (NULL == pDevice)
             return false;
-
+        
         m_mtrl.Ambient = color;
         m_mtrl.Diffuse = color;
         m_mtrl.Specular = color;
@@ -223,7 +129,7 @@ public:
         pDevice->SetTransform(D3DTS_WORLD, &mWorld);
         pDevice->MultiplyTransform(D3DTS_WORLD, &m_mLocal);
         pDevice->SetMaterial(&m_mtrl);
-        // pDevice->SetTexture(0, m_pTexture);
+       // pDevice->SetTexture(0, m_pTexture);
         m_pSphereMesh->DrawSubset(0);
     }
 
@@ -244,7 +150,10 @@ public:
         if (ball.isVisible == true) {
             if (diff_rad <= distance && distance <= sum_rad)
             {
-                G_end = true;
+                ball.setVisible(false);
+                if (HP_count > 0) {
+                    HP_count--;
+                }
             }
         }
 
@@ -253,18 +162,18 @@ public:
     void move_Ball() {
         if (this->blue_ball == false && move == true) {
             D3DXVECTOR3 cord = this->getCenter();
-
-            this->setCenter(cord.x + BALL_SPEED * this->m_velocity_x, float(M_RADIUS), cord.z + BALL_SPEED * this->m_velocity_z);
-
+           
+            this->setCenter(cord.x + this->BALL_SPEED * this->m_velocity_x, float(M_RADIUS), cord.z + this->BALL_SPEED * this->m_velocity_z);
+                
+            
+            }
+            
 
         }
 
+ public:   //setter
 
-    }
-
-public:   //setter
-
-    void setove(bool move) { this->move = move; }
+    void setmove(bool move) {this->move = move;}
     void set_velocity() { // 난수로 적용
         std::random_device rd;
         std::mt19937 gen(rd());
@@ -274,12 +183,12 @@ public:   //setter
         std::uniform_int_distribution<int> dis1(0, 1);
         if (dis1(gen) == 0) this->m_velocity_x = -1;
         else { this->m_velocity_x = 1; }
-
+       
     }
-    void set_velocity_z(float m_velocity) { this->m_velocity_z = m_velocity; }
-    void set_velocity_x(float dir) { this->m_velocity_x = dir; }
+    void set_velocity_z(float m_velocity) {this->m_velocity_z = m_velocity;}
+    void set_velocity_x(float dir) {this->m_velocity_x = dir;}
     void setBlue(bool sign) { this->blue_ball = sign; }               //공 객체에 탄환인지 공인 지 구분하는 setter   
-    void setPower(double vx, double vz) { this->m_velocity_x = vx; this->m_velocity_z = vz; }
+    void setPower(double vx, double vz){this->m_velocity_x = vx; this->m_velocity_z = vz;}
     void setCenter(float x, float y, float z)
     {
         D3DXMATRIX m;
@@ -287,24 +196,19 @@ public:   //setter
         D3DXMatrixTranslation(&m, x, y, z);
         setLocalTransform(m);
     }
-    void setLocalTransform(const D3DXMATRIX& mLocal) { m_mLocal = mLocal; }
+    void setLocalTransform(const D3DXMATRIX& mLocal) { this->m_mLocal = mLocal; }
     void setMove(bool move) { this->move = move; }
-    void setVisible(bool visible) { isVisible = visible; }
-    /* bool setTexture(IDirect3DDevice9* pDevice, const std::string& imagePath) {
-         if (FAILED(D3DXCreateTextureFromFile(pDevice, imagePath.c_str(), &m_pTexture))) {
-             return false;
-         }
+    void setVisible(bool visible) { this-> isVisible = visible; }
+    void setSpeed(float speed) { this->BALL_SPEED = speed; }
 
-         return true;
-     }*/
+  public: //getter
 
-public: //getter
-
-    bool getMove() { return this->move; }
+      float getSpeed() { return this->BALL_SPEED; }
+    bool getMove() {return this->move;}
     double getVelocity_X() { return this->m_velocity_x; }
     double getVelocity_Z() { return this->m_velocity_z; }
     bool getblueball() { return this->blue_ball; }
-    D3DXVECTOR3 getCenter(void) const { D3DXVECTOR3 org(center_x, center_y, center_z); return org; }
+    D3DXVECTOR3 getCenter(void) const{D3DXVECTOR3 org(center_x, center_y, center_z);return org;}
     float getRadius()
         const {
         if (this->blue_ball == true)
@@ -313,12 +217,12 @@ public: //getter
     }
     const D3DXMATRIX& getLocalTransform(void) const { return m_mLocal; }
     bool getVisible() { return isVisible; }
-
+    
     void ballUpdate(float timeDiff)
     {
-
-        const float TIME_SCALE = 1.0;
-
+        
+        const float TIME_SCALE = 0.5;
+        
         D3DXVECTOR3 cord = this->getCenter();
         double vx = abs(this->getVelocity_X());
         double vz = abs(this->getVelocity_Z());
@@ -330,7 +234,7 @@ public: //getter
 private:
     D3DXMATRIX              m_mLocal;
     D3DMATERIAL9           m_mtrl;
-    ID3DXMesh* m_pSphereMesh;
+    ID3DXMesh*              m_pSphereMesh;
 
 };
 
@@ -418,23 +322,28 @@ public:
         float rad = ball.getRadius();
         float distance_x = abs(cord.x - this->m_x);
         float distance_z = abs(cord.z - this->m_z);
-
+        
         if (this->type == 0 && distance_x < rad) { //left wall collision
             ball.set_velocity_x(-1 * ball.getVelocity_X());
-            ball.setCenter(this->m_x - 0.2, float(M_RADIUS), cord.z);
-        }
+            ball.setCenter(this->m_x-0.2,float(M_RADIUS), cord.z);
+            
+       }
         if (this->type == 1 && distance_x <= rad) { //right wall collision
             ball.set_velocity_x(-1 * ball.getVelocity_X());
             ball.setCenter(this->m_x + 0.2, float(M_RADIUS), cord.z);
+             
         }
         if (this->type == 2 && distance_z <= rad) { //upper wall collision
             ball.set_velocity_z(-1 * ball.getVelocity_Z());
             ball.setCenter(cord.x, float(M_RADIUS), this->m_z + 0.2);
+
         }
         if (this->type == 3 && distance_z <= rad) { //down wall collision
             ball.set_velocity_z(-1 * ball.getVelocity_Z());
             ball.setCenter(cord.x, float(M_RADIUS), this->m_z - 0.2);
         }
+
+       
     }
     void hitBy(CSphere& target, CSphere& ball)
     {
@@ -476,8 +385,8 @@ public:
     void setPosition(float x, float y, float z)
     {
         D3DXMATRIX m;
-
-
+        
+        
         this->m_x = x;
         this->m_z = z;
 
@@ -495,6 +404,142 @@ private:
     D3DXMATRIX              m_mLocal;
     D3DMATERIAL9            m_mtrl;
     ID3DXMesh* m_pBoundMesh;
+};
+// -----------------------------------------------------------------------------
+// CBox class definition
+// -----------------------------------------------------------------------------
+class CBox {
+private:
+    float               m_x, m_z, m_width, m_depth, m_height;
+    float               m_diagnoal;
+    bool                isVisible;
+    int                Item_type;
+    bool                item;
+    bool                HP;
+    // IDirect3DTexture9* m_pTexture;
+
+public:
+    CBox(void)                           // 공 객체
+    {
+        D3DXMatrixIdentity(&m_mLocal);
+        ZeroMemory(&m_mtrl, sizeof(m_mtrl));
+        m_pBoxMesh = NULL;
+        m_diagnoal = 0;
+        isVisible = false;
+        m_width = 0;
+        m_height = 0;
+        m_depth = 0;
+        HP = false;
+    }
+    ~CBox(void) {}
+
+public:
+    bool create(IDirect3DDevice9* pDevice, float iwidth, float iheight, float idepth, D3DXCOLOR color = d3d::WHITE)
+    {
+        if (NULL == pDevice)
+            return false;
+
+        m_mtrl.Ambient = color;
+        m_mtrl.Diffuse = color;
+        m_mtrl.Specular = color;
+        m_mtrl.Emissive = d3d::BLACK;
+        m_mtrl.Power = 5.0f;
+
+
+        if (FAILED(D3DXCreateBox(pDevice, iwidth, iheight, idepth, &m_pBoxMesh, NULL)))
+            return false;
+        return true;
+    }
+
+
+    void destroy(void)
+    {
+        if (m_pBoxMesh != NULL) {
+            m_pBoxMesh->Release();
+            m_pBoxMesh = NULL;
+        }
+    }
+
+    void draw(IDirect3DDevice9* pDevice, const D3DXMATRIX& mWorld)
+    {
+        if (NULL == pDevice || !getVisible())
+            return;
+
+        pDevice->SetTransform(D3DTS_WORLD, &mWorld);
+        pDevice->MultiplyTransform(D3DTS_WORLD, &m_mLocal);
+        pDevice->SetMaterial(&m_mtrl);
+        m_pBoxMesh->DrawSubset(0);
+    }
+
+    void hitBy(CSphere& blue)
+    {
+        D3DXVECTOR3 cord = blue.getCenter();
+        float distance = sqrt((this->getX() - cord.x) * (this->getX() - cord.x)+(this->getZ() - cord.z)* (this->getZ() - cord.z));
+        float half_diagonal = sqrt(2 * (B_DIAGONAL * B_DIAGONAL)) / 2;
+
+        if (this->getitem() == true && blue.getblueball() == true && this->getVisible()==true) {
+            if (distance <= half_diagonal + blue.getRadius()) {
+                
+                switch (this->getitem_type()) {
+                case 0: // blue ball Speed up
+
+                    break;
+
+                case 1: // ball Speed down
+                    if(G_event == 0){
+                    STATIC_BALL_SPEED = STATIC_BALL_SPEED * 1.5;
+                    score += 50;
+                    G_event = 1;
+                    }
+                    break;
+
+                case 2: // heal
+                    break;
+                }
+                this->setVisible(false);
+            }
+
+            
+        }
+    }
+
+
+public:   //setter
+
+    void setPosition(float x, float y, float z)
+    {
+        D3DXMATRIX m;
+
+
+        this->m_x = x;
+        this->m_z = z;
+
+        D3DXMatrixTranslation(&m, x, y, z);         //x,y,z의 좌표를 행렬로 변환
+        setLocalTransform(m);                  //행렬대로 위치 변환
+    }
+    void setLocalTransform(const D3DXMATRIX& mLocal) { m_mLocal = mLocal; }
+    void setVisible(bool visible) { isVisible = visible; }
+    void setDiagonal(float diagonal) { this->m_diagnoal = diagonal; }
+    void setItem(bool item) { this->item = item; }
+    void setItemType(int type) { this->Item_type = type; }
+    void setHP(bool HP) { this->HP = HP; }
+    
+public: //getter
+
+    const float getDiagonal(void) const { return this->m_diagnoal; }
+    const D3DXMATRIX& getLocalTransform(void) const { return m_mLocal; }
+    const bool getVisible(void) const { return this->isVisible; }
+    const int getitem_type(void)const { return this->Item_type; }
+    const bool getitem(void) const { return this->item; }
+    const float getX(void)const { return this->m_x; }
+    const float getZ(void)const { return this->m_z; }
+    const int getHP(void) const { return this->HP; }
+
+private:
+    D3DXMATRIX              m_mLocal;
+    D3DMATERIAL9           m_mtrl;
+    ID3DXMesh* m_pBoxMesh;
+
 };
 
 // -----------------------------------------------------------------------------
@@ -594,11 +639,16 @@ CSphere   g_sphere[MAX_BALL_NUM];
 CSphere   g_target_blueball;
 CLight   g_light;
 
-CBox test; // test Box
+CBox health[3];
+CBox item[50]; // test Box
 
-float spherePos[100][2];
-static int G_time = 0;
-static int G_num = 0;
+float spherePos[MAX_BALL_NUM][2];
+float sitemPos[MAX_ITEM_NUM][2];
+
+static int G_time=0;
+static int G_time_item=0;
+static int G_num =0;
+static int G_num_item = 0;
 double g_camera_pos[3] = { 0.0, 5.0, -8.0 };
 
 // -----------------------------------------------------------------------------
@@ -630,7 +680,7 @@ bool Setup()
 
     if (false == g_legowall[1].create(Device, -1, -1, 9, 0.1f, 0.1f, d3d::DARKRED)) return false;
     g_legowall[1].setPosition(0.0f, 0.12f, -3.06f); g_legowall[1].settype(2); //upper
-
+    
     if (false == g_legowall[2].create(Device, -1, -1, 0.1f, 0.1f, 6.24f, d3d::DARKRED)) return false;
     g_legowall[2].setPosition(4.56f, 0.12f, 0.0f); g_legowall[2].settype(0); //left
 
@@ -641,7 +691,7 @@ bool Setup()
 
     std::uniform_real_distribution<float> disw(-3.0f, 3.0f);
     std::uniform_real_distribution<float> dish(-4.0f, 4.0f);
-
+    
     for (i = 0; i < MAX_BALL_NUM; i++) {                                                   //기존의 미리 만들어진 객체 4개에 대해 위치 랜덤으로 생성하도록 구현했지만
         if (false == g_sphere[i].create(Device, sphereColor[i])) return false;         //시간초 마다 객체를 동적으로 생성하고 제거하도록 해야 한다.
 
@@ -654,21 +704,38 @@ bool Setup()
         g_sphere[i].setBlue(false);
         spherePos[i][0] = height;
         spherePos[i][1] = width;
+    }
+    for (i = 0; i < MAX_ITEM_NUM; i++) {                                                   //기존의 미리 만들어진 객체 4개에 대해 위치 랜덤으로 생성하도록 구현했지만
+        std::random_device rd;
+
+        std::mt19937 gen(rd());
+        float width = disw(gen);
+        float height = dish(gen);
+
+        sitemPos[i][0] = height;
+        sitemPos[i][1] = width;
+
+        if (false == item[i].create(Device, (float)B_DIAGONAL, (float)B_DIAGONAL, (float)B_DIAGONAL, d3d::BLACK)) return false;         //판 색상
+        item[i].setPosition(sitemPos[i][0], 0.0f, sitemPos[i][1]); item[i].setItem(true); item[i].setItemType(1);
 
     }
+    
     for (i = 0; i < MAX_BALL_NUM; i++) {
         if (false == g_sphere[i].create(Device, sphereColor[i])) return false;
         g_sphere[i].setCenter(spherePos[i][0], (float)M_RADIUS, spherePos[i][1]);
         g_sphere[i].setPower(0, 0);
         g_sphere[i].set_velocity();
-
+   
     }
     //create Box
 
-    if (false == test.create(Device, (float)B_DIAGONAL, (float)B_DIAGONAL, (float)B_DIAGONAL, d3d::DARKRED)) return false;         //판 색상
-    test.setPosition(0.0f, 0.0f, 1.0f); test.setVisible(false);
-    //test.setDiagonal((float)B_DIAGONAL);
+    for (int i = 0; i < HP_count; i++) {
+        if (false == health[i].create(Device, 4*(float)B_DIAGONAL, (float)B_DIAGONAL, (float)B_DIAGONAL, d3d::DARKRED)) return false;         //판 색상
+        health[i].setPosition((float)i +1, 0.0f, -3.5f); health[i].setVisible(true); health[i].setHP(true);
 
+    }
+
+    
     // create blue ball for set m_velocity
     g_target_blueball.setBlue(true); //true로 수정해야함
     if (false == g_target_blueball.create(Device, d3d::BLUE)) return false;
@@ -721,12 +788,12 @@ void Cleanup(void)
     destroyAllLegoBlock();
     g_light.destroy();
 }
-
-//hdc 가져오는 함수
 HDC hdc = GetDC(NULL);
 
 // timeDelta represents the time between the current image frame and the last image frame.
 // the distance of moving balls should be "velocity * timeDelta"
+int k = 0;
+
 bool Display(float timeDelta)
 {
     int i = 0;
@@ -744,30 +811,57 @@ bool Display(float timeDelta)
         Device->Clear(0, 0, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0x00afafaf, 1.0f, 0);
         Device->BeginScene();
 
+        
         // update the position of each ball. during update, check whether each ball hit by walls.
         for (i = 0; i < MAX_BALL_NUM; i++) {
             g_sphere[i].ballUpdate(timeDelta);
-            for (j = 0; j < 4; j++) { 
+            for (j = 0; j < 4; j++) {
                 if (g_legowall[j].hasIntersected(g_sphere[i]))
                 {
                     score += 100;
-                    g_legowall[j].hitBy(g_target_blueball, g_sphere[i]); ;
+                    if (score / 3 == 0) {
+                        g_legowall[j].hitBy(g_target_blueball, g_sphere[i]); ;
+                    }
+                    else {
+                        g_legowall[j].hitBy(g_sphere[i]); ;
+
+                    }
                 }
             }
         }
 
         // check whether any two balls hit together and update the m_velocity of balls
         for (i = 0; i < MAX_BALL_NUM; i++) {
-            g_sphere[i].hitBy(g_target_blueball, g_sphere[i]);
+            g_sphere[i].hitBy(g_target_blueball,g_sphere[i]);       
+        }
+        for (i = 0; i < MAX_ITEM_NUM; i++) {
+            item[i].hitBy(g_target_blueball);
+            item[i].draw(Device, g_mWorld);
         }
         g_legoPlane.draw(Device, g_mWorld);
         for (i = 0; i < 4; i++) {
             g_legowall[i].draw(Device, g_mWorld);
         }
+        
+        health[2 - HP_count].setHP(false);
+        
+        
+        for (i = 0; i < 3; i++) {
+           
+            if (health[i].getHP() == false) {
+                health[i].setVisible(false);
+            }
+            health[i].draw(Device, g_mWorld);
+        }
+        if (HP_count == 0) {
+            G_end = true;
+        }
         for (i = 0; i < MAX_BALL_NUM; i++) {
             g_sphere[i].draw(Device, g_mWorld);
-        }
+            g_sphere[i].setSpeed(STATIC_BALL_SPEED);
 
+        }
+        
         if (start == true) {
             // draw plane, walls, and spheres
             if (G_end == true) {
@@ -779,21 +873,37 @@ bool Display(float timeDelta)
             }
             else {
                 G_time++;
-
+                
                 if (G_time > TIME_BALL_MOVE) { //1000 = 2 sec
                     G_time = 0;
                     g_sphere[G_num].setVisible(true);
                     g_sphere[G_num].setMove(true);
                     if (G_num < MAX_BALL_NUM) { G_num++; }
-           
                 }
+            }
+            if (G_num_item == 0) {
+                item[G_num_item].setVisible(true);
+                G_num_item = 1;
+            }
+            if (G_event == 1) {
+
+                G_time_item++;
+                
+                if (G_time_item > TIME_ITEM) {
+                    G_time_item = 0;
+                    STATIC_BALL_SPEED = FIXED_BALL_SPEED * (1+3*G_num_item/100);
+                    G_event = 0;
+                    item[G_num_item].setVisible(true);
+                    if (G_num_item < MAX_ITEM_NUM) { G_num_item++; }
+                }
+               
             }
         }
 
+        
         g_target_blueball.draw(Device, g_mWorld);
         g_light.draw(Device);
-        test.draw(Device, g_mWorld);
-
+        
         Device->EndScene();
         Device->Present(0, 0, 0, 0);
         Device->SetTexture(0, NULL);
@@ -826,7 +936,7 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
         switch (wParam) {
         case VK_ESCAPE:               //ESC 누르면 나감
-            ::DestroyWindow(hwnd);
+            DestroyWindow(hwnd);
             break;
         case VK_RETURN:               //엔터 키 누르면
             if (NULL != Device) {
@@ -835,25 +945,25 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     (wire ? D3DFILL_WIREFRAME : D3DFILL_SOLID));
             }
             break;
-        case VK_SPACE:
+        case VK_SPACE:   
             //g_target_blueball.setBlue()
-            g_target_blueball.setove(true);
+            g_target_blueball.setmove(true);
             start = !start;                  //스페이스 바 입력 시 커서 사라짐 ( 파란 공이 움직일 수  있도록 하는 조건 )
             ShowCursor(!start);
             break;
         case VK_F1:
-
+          
             for (int i = 0; i < MAX_BALL_NUM; i++) {
-                if (g_sphere[i].getMove() == false) g_sphere[i].setove(true);
-                else { g_sphere[i].setove(false); }
+                if(g_sphere[i].getMove()== false) g_sphere[i].setmove(true);
+                else { g_sphere[i].setmove(false); }
             }
             break;
-
-        case VK_F2:
-            //D3DXVECTOR3 coor;
-            break;
+            
+       case VK_F2:
+          // g_sphere[0].setSpeed(0.1);
+           break;
         }
-
+ 
         break;
     }
 
@@ -864,7 +974,7 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         float dx;
         float dy;
 
-        if (start == true && g_target_blueball.getMove() == true)               //파란 공이 움직이도록 하는 코드
+        if (start == true&& g_target_blueball.getMove() == true)               //파란 공이 움직이도록 하는 코드
         {
             dx = (old_x - new_x);
             dy = (old_y - new_y);
@@ -888,7 +998,7 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
             else if (coord3d.z <= -3 + M_RADIUS)
             {
-                coord3d.z = 3 - 2 * M_RADIUS;
+                   coord3d.z = 3 - 2 * M_RADIUS;
                 g_target_blueball.setCenter(coord3d.x, (float)M_RADIUS, coord3d.z);
             }
 
