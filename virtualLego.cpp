@@ -29,6 +29,7 @@ const int Width = 1024;
 const int Height = 768;
 
 // start button
+bool temp_startpage = false;
 bool start = false;                     // Game start control
 static bool G_end = false;              // Game end control
 static int G_event = 0;                 //
@@ -293,16 +294,14 @@ public:
 
     bool hasIntersected(CSphere& ball)
     {
-        if (ball.getVisible() == true) {
-            D3DXVECTOR3 cord = ball.getCenter();
-            float rad = ball.getRadius();
-            float distance_x = abs(cord.x - this->m_x); //공의 x좌표-벽의 x좌표 의 절대값
-            float distance_z = abs(cord.z - this->m_z); //공의 z좌표-벽의 z좌표 의 절대값
+        D3DXVECTOR3 cord = ball.getCenter();
+        float rad = ball.getRadius();
+        float distance_x = abs(cord.x - this->m_x); //공의 x좌표-벽의 x좌표 의 절대값
+        float distance_z = abs(cord.z - this->m_z); //공의 z좌표-벽의 z좌표 의 절대값
 
-            if ((this->type == 0 && distance_x < rad) || this->type == 1 && distance_x <= rad
-                || this->type == 2 && distance_z <= rad || this->type == 3 && distance_z <= rad) { //left wall collision
-                return true;
-            }
+        if ((this->type == 0 && distance_x < rad) || this->type == 1 && distance_x <= rad
+            || this->type == 2 && distance_z <= rad || this->type == 3 && distance_z <= rad) { //left wall collision
+            return true;
         }
         
 
@@ -654,6 +653,7 @@ void destroyAllLegoBlock(void)
 // initialization
 bool Setup()
 {
+    g_target_blueball.setVisible(false);
     int i;
 
     D3DXMatrixIdentity(&g_mWorld);
@@ -735,10 +735,10 @@ bool Setup()
 
 
     // create blue ball for set m_velocity
-    g_target_blueball.setBlue(true); //true로 수정해야함
+    g_target_blueball.setBlue(true); 
     if (false == g_target_blueball.create(Device, d3d::BLUE)) return false;
     g_target_blueball.setCenter(.0f, (float)M_RADIUS, .0f);
-    g_target_blueball.setVisible(true);
+    g_target_blueball.setVisible(false);
 
     // light setting 
     D3DLIGHT9 lit;
@@ -787,6 +787,34 @@ void Cleanup(void)
     g_light.destroy();
 }
 HDC hdc = GetDC(NULL);
+void DrawStartPage()
+{
+    Device->Clear(0, 0, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(255, 255, 255), 1.0f, 0);
+    Device->BeginScene();
+
+    RECT rectTitle{ 300, 250, 700, 300 };
+    RECT rectMessage{ 200, 350, 800, 450 };
+
+    //Device->ColorFill(NULL, NULL, D3DCOLOR_XRGB(255, 255, 255));
+
+    LPD3DXFONT pTitleFont = NULL;
+    HRESULT hr = D3DXCreateFont(Device, 70, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Elephant", &pTitleFont);
+    pTitleFont->DrawText(NULL, "Bullet Hell", -1, &rectTitle, DT_CENTER | DT_VCENTER, D3DCOLOR_XRGB(0, 0, 0));
+
+    LPD3DXFONT pFont = NULL;
+    D3DXCreateFont(Device, 40, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &pFont);
+    pFont->DrawText(NULL, "Press Space to Start", -1, &rectMessage, DT_CENTER | DT_VCENTER, D3DCOLOR_XRGB(0, 0, 0));
+
+    Device->EndScene();
+    Device->Present(0, 0, 0, 0);
+
+    pFont->Release();
+    pFont = nullptr;
+    pTitleFont->Release();
+    pTitleFont = nullptr;
+}
 
 // timeDelta represents the time between the current image frame and the last image frame.
 // the distance of moving balls should be "velocity * timeDelta"
@@ -801,8 +829,6 @@ bool Display(float timeDelta)
     WCHAR test_str[1024];
     int num = 100;
 
-    wsprintfW(word, L"SCORE : %d", score);
-    TextOutW(hdc, 100, 100, word, wcslen(word));
 
     if (Device)
     {
@@ -880,8 +906,8 @@ bool Display(float timeDelta)
             g_sphere[i].setSpeed(STATIC_BALL_SPEED);
 
         }
-
-        if (start == true) {
+        if (!temp_startpage) DrawStartPage();
+        if (start) {
             // draw plane, walls, and spheres
             if (G_end == true) {                    // G_end == true => HP = 0
                 for (i = 0; i < MAX_BALL_NUM; i++) {
@@ -891,6 +917,7 @@ bool Display(float timeDelta)
                 g_target_blueball.setVisible(false);
             }
             else {
+               
                 G_time++;                            // time count ++
 
                 if (G_time > TIME_BALL_MOVE) { // init G_time & add new ball => repeat MAX_BALL_NUM
@@ -917,6 +944,7 @@ bool Display(float timeDelta)
                 }
 
             }
+
         }
 
 
@@ -927,6 +955,12 @@ bool Display(float timeDelta)
         Device->Present(0, 0, 0, 0);
         Device->SetTexture(0, NULL);
 
+        if (temp_startpage)
+        {
+            //score and set blueball visible
+            wsprintfW(word, L"SCORE : %d", score);
+            TextOutW(hdc, 100, 100, word, wcslen(word));
+        }
 
     }
     return true;
@@ -965,10 +999,17 @@ LRESULT CALLBACK d3d::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             }
             break;
         case VK_SPACE:
+            if (!temp_startpage)
+            {
+                DrawStartPage();
+                temp_startpage = true;
+            }
             //g_target_blueball.setBlue()
             g_target_blueball.setmove(true);
             start = !start;                  //스페이스 바 입력 시 커서 사라짐 ( 파란 공이 움직일 수  있도록 하는 조건 )
             ShowCursor(!start);
+            if (!g_target_blueball.getVisible() == true)
+                g_target_blueball.setVisible(true);
             break;
         case VK_F1:
 
@@ -1052,7 +1093,7 @@ int WINAPI WinMain(HINSTANCE hinstance,
         ::MessageBox(0, "Setup() - FAILED", 0, 0);
         return 0;
     }
-
+    DrawStartPage();
     d3d::EnterMsgLoop(Display);
 
     Cleanup();
