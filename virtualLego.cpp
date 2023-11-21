@@ -33,7 +33,7 @@ bool temp_startpage = false;
 bool start = false;                     // Game start control
 static bool G_end = false;              // Game end control
 static int G_event = 0;                 //
-static float STATIC_BALL_SPEED = 0.001; //ball speed control
+static float STATIC_BALL_SPEED = 0.007; //ball speed control
 static int score = 0;                   // In game score
 static int HP_count = 3;                //In game HP
 
@@ -55,12 +55,16 @@ D3DXMATRIX g_mProj;
 #define PI 3.14159265
 
 #define MAX_BALL_NUM 100 // max number of ball
-#define MAX_ITEM_NUM 50 // max number of itembox
+#define MAX_ITEM_NUM 4 // max number of itembox
 
 #define TIME_BALL_MOVE 4000 // ball's generating period
 #define TIME_ITEM 8000      // item's generating period
 
 #define FIXED_BALL_SPEED 0.001 // fixed speed
+
+
+float angle_degree = 45.0f;             //angle element of dead event
+float angle_radian = PI / 180.0;        //radian of angle
 
 // -----------------------------------------------------------------------------
 // CSphere class definition
@@ -299,11 +303,11 @@ public:
         float distance_x = abs(cord.x - this->m_x); //공의 x좌표-벽의 x좌표 의 절대값
         float distance_z = abs(cord.z - this->m_z); //공의 z좌표-벽의 z좌표 의 절대값
 
-        if ((this->type == 0 && distance_x < rad) || this->type == 1 && distance_x <= rad
+        if ((this->type == 0 && distance_x <= rad) || this->type == 1 && distance_x <= rad
             || this->type == 2 && distance_z <= rad || this->type == 3 && distance_z <= rad) { //left wall collision
             return true;
         }
-        
+
 
         return false;
     }
@@ -474,14 +478,14 @@ public:
 
                 case 1: // ball Speed down
                     if (G_event == 0) {
-                        STATIC_BALL_SPEED = STATIC_BALL_SPEED * 1/2;     // ball speed up
+                        STATIC_BALL_SPEED = STATIC_BALL_SPEED * 1 / 2;     // ball speed up
                         score += 50;                                     // score + 50
                         G_event = 1;                                     // event start
                     }
                     break;
 
                 case 2: // heal
-                    if(HP_count < 3) HP_count++;
+                    if (HP_count < 3) HP_count++;
                     G_event = 2;
                     break;
                 }
@@ -625,6 +629,7 @@ private:
 CWall   g_legoPlane;
 CWall   g_legowall[4];
 CSphere   g_sphere[MAX_BALL_NUM];
+CSphere end_ball[8];
 CSphere   g_target_blueball;
 CLight   g_light;
 
@@ -707,14 +712,14 @@ bool Setup()
         sitemPos[i][1] = width;
 
         if (type == 1) {
-            if (false == item[i].create(Device, (float)B_DIAGONAL, (float)B_DIAGONAL, (float)B_DIAGONAL, d3d::BLACK)) return false;       
+            if (false == item[i].create(Device, (float)B_DIAGONAL, (float)B_DIAGONAL, (float)B_DIAGONAL, d3d::BLACK)) return false;
             item[i].setPosition(sitemPos[i][0], 0.0f, sitemPos[i][1]); item[i].setItem(true); item[i].setItemType(type);
         }
-        else if(type == 2){
-            if (false == item[i].create(Device, (float)B_DIAGONAL, (float)B_DIAGONAL, (float)B_DIAGONAL, d3d::RED)) return false;        
+        else if (type == 2) {
+            if (false == item[i].create(Device, (float)B_DIAGONAL, (float)B_DIAGONAL, (float)B_DIAGONAL, d3d::RED)) return false;
             item[i].setPosition(sitemPos[i][0], 0.0f, sitemPos[i][1]); item[i].setItem(true); item[i].setItemType(type);
         }
-       
+
 
     }
 
@@ -723,10 +728,20 @@ bool Setup()
         g_sphere[i].setCenter(spherePos[i][0], (float)M_RADIUS, spherePos[i][1]);
         g_sphere[i].setPower(0, 0);
         g_sphere[i].set_velocity();
-
     }
-    //create Box
 
+    //create ending event
+    for (i = 0; i < 8; i++)
+    {
+        if (false == end_ball[i].create(Device, d3d::MAGENTA)) return false;
+        end_ball[i].setCenter(0, 0, 0);
+        end_ball[i].setPower(0, 0);
+        end_ball[i].set_velocity_x(3 * cos(i * angle_degree * angle_radian));
+        end_ball[i].set_velocity_z(3 * sin(i * angle_degree * angle_radian));
+    }
+
+
+    //create Box
     for (int i = 0; i < HP_count; i++) {
         if (false == health[i].create(Device, 4 * (float)B_DIAGONAL, (float)B_DIAGONAL, (float)B_DIAGONAL, d3d::DARKRED)) return false;         //판 색상
         health[i].setPosition(3 - (float)i, 0.0f, -3.5f); health[i].setVisible(true); health[i].setHP(true);
@@ -735,7 +750,7 @@ bool Setup()
 
 
     // create blue ball for set m_velocity
-    g_target_blueball.setBlue(true); 
+    g_target_blueball.setBlue(true);
     if (false == g_target_blueball.create(Device, d3d::BLUE)) return false;
     g_target_blueball.setCenter(.0f, (float)M_RADIUS, .0f);
     g_target_blueball.setVisible(false);
@@ -787,24 +802,40 @@ void Cleanup(void)
     g_light.destroy();
 }
 HDC hdc = GetDC(NULL);
+
+struct D3DVERTEX
+{
+    FLOAT x, y, z, rhw;
+    DWORD color;
+};
+
 void DrawStartPage()
 {
     Device->Clear(0, 0, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(255, 255, 255), 1.0f, 0);
     Device->BeginScene();
 
-    RECT rectTitle{ 300, 250, 700, 300 };
+    RECT rectTitle{ 250, 250, 750, 300 };
     RECT rectMessage{ 200, 350, 800, 450 };
 
-    //Device->ColorFill(NULL, NULL, D3DCOLOR_XRGB(255, 255, 255));
+    D3DVERTEX vertices[] =
+    {
+        { 200.0f, 350.0f, 0.0f, 1.0f, D3DCOLOR_XRGB(230,230,230) },
+        { 800.0f, 350.0f, 0.0f, 1.0f, D3DCOLOR_XRGB(230,230,230) },
+        { 800.0f, 450.0f, 0.0f, 1.0f, D3DCOLOR_XRGB(140,140,140) },
+        { 200.0f, 450.0f, 0.0f, 1.0f, D3DCOLOR_XRGB(140,140,140) }
+    };
+
+    Device->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
+    Device->DrawPrimitiveUP(D3DPT_TRIANGLEFAN, 2, vertices, sizeof(D3DVERTEX));
 
     LPD3DXFONT pTitleFont = NULL;
     HRESULT hr = D3DXCreateFont(Device, 70, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Elephant", &pTitleFont);
-    pTitleFont->DrawText(NULL, "Bullet Hell", -1, &rectTitle, DT_CENTER | DT_VCENTER, D3DCOLOR_XRGB(0, 0, 0));
+        OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Copperplate Gothic Bold", &pTitleFont);
+    pTitleFont->DrawText(NULL, "Bullet Hell", -1, &rectTitle, DT_CENTER | DT_VCENTER, D3DCOLOR_XRGB(128, 0, 0));
 
     LPD3DXFONT pFont = NULL;
-    D3DXCreateFont(Device, 40, 0, FW_BOLD, 1, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &pFont);
+    D3DXCreateFont(Device, 40, 0, FW_NORMAL, 1, FALSE, DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Copperplate Gothic Light", &pFont);
     pFont->DrawText(NULL, "Press Space to Start", -1, &rectMessage, DT_CENTER | DT_VCENTER, D3DCOLOR_XRGB(0, 0, 0));
 
     Device->EndScene();
@@ -825,10 +856,10 @@ bool Display(float timeDelta)
     int i = 0;
     int j = 0;
 
-    WCHAR word[1024];
-    WCHAR test_str[1024];
-    int num = 100;
+    D3DXVECTOR3 coord3d = g_target_blueball.getCenter();        //fetch coordination of blue ball
 
+    WCHAR word[1024];
+    int num = 100;
 
     if (Device)
     {
@@ -840,10 +871,10 @@ bool Display(float timeDelta)
         for (i = 0; i < MAX_BALL_NUM; i++) {
             g_sphere[i].ballUpdate(timeDelta);
             for (j = 0; j < 4; j++) {
-                if (g_legowall[j].hasIntersected(g_sphere[i]))
+                if (g_legowall[j].hasIntersected(g_sphere[i]) && g_sphere[i].getVisible()==true)
                 {
                     score += 100;
-                    if (score / 3 == 0) {
+                    if (score % 3 == 0) {
                         g_legowall[j].hitBy(g_target_blueball, g_sphere[i]); ;
                     }
                     else {
@@ -867,29 +898,31 @@ bool Display(float timeDelta)
             g_legowall[i].draw(Device, g_mWorld);
         }
 
+        // show the health bar
         if (HP_count == 3) {
             health[0].setHP(true);
             health[1].setHP(true);
             health[2].setHP(true);
         }
         else if (HP_count == 2) {
-                health[0].setHP(true);
-                health[1].setHP(true);
-                health[2].setHP(false);
+            health[0].setHP(true);
+            health[1].setHP(true);
+            health[2].setHP(false);
         }
         else if (HP_count == 1) {
-                health[0].setHP(true);
-                health[1].setHP(false);
-                health[2].setHP(false);
+            health[0].setHP(true);
+            health[1].setHP(false);
+            health[2].setHP(false);
         }
         else if (HP_count == 0) {
-               health[0].setHP(false);
-               health[1].setHP(false);
-               health[2].setHP(false);
+            health[0].setHP(false);
+            health[1].setHP(false);
+            health[2].setHP(false);
         }
 
+        //show or hide the item
         for (i = 0; i < 3; i++) {
-            
+
             if (health[i].getHP() == false) {
                 health[i].setVisible(false);
             }
@@ -898,26 +931,48 @@ bool Display(float timeDelta)
             }
             health[i].draw(Device, g_mWorld);
         }
+
+        //if HP_count==0
         if (HP_count == 0) {
+            for (int i = 0; i < 8; i++)
+            {
+                end_ball[i].setVisible(true);
+                end_ball[i].setMove(true);
+                end_ball[i].ballUpdate(timeDelta);
+
+                end_ball[i].draw(Device, g_mWorld);
+            }
             G_end = true;
         }
+        else
+        {
+            for (int i = 0; i < 8; i++)
+                end_ball[i].setCenter(coord3d.x, (float)B_RADIUS, coord3d.z);
+        }
+
+        // draw ball
         for (i = 0; i < MAX_BALL_NUM; i++) {
             g_sphere[i].draw(Device, g_mWorld);
             g_sphere[i].setSpeed(STATIC_BALL_SPEED);
 
         }
+        
+        //draw startpage
         if (!temp_startpage) DrawStartPage();
+
+
         if (start) {
             // draw plane, walls, and spheres
             if (G_end == true) {                    // G_end == true => HP = 0
                 for (i = 0; i < MAX_BALL_NUM; i++) {
                     g_sphere[i].setMove(false);
+                    
                 }
                 g_target_blueball.setMove(false);
                 g_target_blueball.setVisible(false);
             }
             else {
-               
+                //draw balls every certain period of time
                 G_time++;                            // time count ++
 
                 if (G_time > TIME_BALL_MOVE) { // init G_time & add new ball => repeat MAX_BALL_NUM
@@ -927,6 +982,8 @@ bool Display(float timeDelta)
                     if (G_num < MAX_BALL_NUM) { G_num++; }
                 }
             }
+
+            // draw items every certain period of time
             if (G_num_item == 0) {
                 item[G_num_item].setVisible(true);
                 G_num_item = 1;
@@ -937,7 +994,7 @@ bool Display(float timeDelta)
 
                 if (G_time_item > TIME_ITEM) {
                     G_time_item = 0;
-                    if(G_event == 1) STATIC_BALL_SPEED = FIXED_BALL_SPEED * (1 + 3 * G_num_item / 100);
+                    if (G_event == 1) STATIC_BALL_SPEED = FIXED_BALL_SPEED * (1 + 3 * G_num_item / 100);
                     G_event = 0;
                     item[G_num_item].setVisible(true);
                     if (G_num_item < MAX_ITEM_NUM) { G_num_item++; }
@@ -947,7 +1004,6 @@ bool Display(float timeDelta)
 
         }
 
-
         g_target_blueball.draw(Device, g_mWorld);
         g_light.draw(Device);
 
@@ -955,6 +1011,7 @@ bool Display(float timeDelta)
         Device->Present(0, 0, 0, 0);
         Device->SetTexture(0, NULL);
 
+        // print the score on the window
         if (temp_startpage)
         {
             //score and set blueball visible
