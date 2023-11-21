@@ -870,7 +870,7 @@ bool Display(float timeDelta)
         for (i = 0; i < MAX_BALL_NUM; i++) {
             g_sphere[i].ballUpdate(timeDelta);
             for (j = 0; j < 4; j++) {
-                if (g_legowall[j].hasIntersected(g_sphere[i]) && g_sphere->getVisible() == true)
+                if (g_legowall[j].hasIntersected(g_sphere[i]) && g_sphere[i].getVisible() == true)
                 {
                     score += 100;
                     if (score % 3 == 0) {
